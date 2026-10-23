@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAC Quebra-Cabeça 💖</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        poppins: ['Poppins', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            gold: '#fbbf24',
+                            pink: '#db2777',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #4c1d95, #9d174d, #db2777);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+            touch-action: none; /* Previne scroll acidental enquanto arrasta no mobile */
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Container do Quebra-Cabeça */
+        #puzzle-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            width: 100%;
+            max-width: 300px;
+            aspect-ratio: 1/1;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px;
+            border-radius: 12px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Peças do Quebra-Cabeça */
+        .puzzle-piece {
+            width: 100%;
+            height: 100%;
+            background-size: 300% 300%;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3);
+            transition: transform 0.2s, z-index 0s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .puzzle-piece:active {
+            transform: scale(1.05);
+            z-index: 50;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        
+        .puzzle-piece.dragging {
+            opacity: 0.8;
+            transform: scale(1.05);
+            z-index: 100;
+        }
+
+        /* Container quando completo (some as bordas) */
+        #puzzle-container.completed {
+            gap: 0;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+        }
+
+        #puzzle-container.completed .puzzle-piece {
+            border-radius: 0;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        /* Animações de UI */
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #modal { display: none; }
+        #modal.active { display: flex; }
+
+        /* Substitua a URL abaixo pela sua foto! Aspect ratio recomendado: quadrado (1:1) */
+        :root {
+            /* URL placeholder - troque pelo link real da imagem no seu github */
+            --puzzle-image: url('https://picsum.photos/600/600?random=1');
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <header class="text-center mb-6 fade-in">
+        <h1 class="text-3xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-brand-gold to-yellow-200 mb-2 drop-shadow-lg">
+            Quebra-Cabeça 🧩
+        </h1>
+        <p class="text-white/80 font-medium">Reconstrua nossa memória!</p>
+    </header>
+
+    <div class="glass-card p-6 md:p-8 rounded-3xl w-full max-w-md fade-in flex flex-col items-center">
+        
+        <div id="status-text" class="text-brand-gold font-bold mb-4 tracking-wider uppercase text-sm">
+            Arraste as peças
+        </div>
+
+        <!-- Grid onde as peças serão embaralhadas -->
+        <div id="puzzle-container">
+            <!-- As 9 divs serão injetadas via JS -->
+        </div>
+        
+    </div>
+
+    <!-- Modal de Vitória -->
+    <div id="modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 items-center justify-center p-4 fade-in">
+        <div class="glass-card p-8 rounded-3xl text-center max-w-sm w-full">
+            <div class="text-6xl mb-4">✨</div>
+            <h2 class="text-3xl font-bold text-brand-gold mb-2">Perfeito!</h2>
+            <p id="memory-message" class="text-lg text-white/90 mb-6 leading-relaxed">
+                <!-- Mensagem dinâmica da fase entrará aqui -->
+                Cada pedacinho da nossa história é importante. Te amo!
+            </p>
+            <button onclick="nextLevel()" class="w-full bg-gradient-to-r from-brand-gold to-yellow-500 text-purple-900 font-extrabold text-lg py-3 rounded-full shadow-lg hover:scale-105 transition-transform">
+                Próxima Memória ➔
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configuração das Fases
+        // IMPORTANTE: Use fotos preferencialmente quadradas (1:1) para não distorcer.
+        // Se a foto não for quadrada, o CSS ajustará, mas pode cortar partes.
+        const levels = [
+            {
+                image: "casal_1.jpeg", // Placeholder romântico
+                message: "Aquele dia em Morro foi maravilhoso, lembra?"
+            },
+            {
+                image: "casal_2.jpeg", // Placeholder romântico
+                message: "Nossa primeira viagem para o Rio!"
+            },
+            {
+                image: "casal_3.jpeg", // Placeholder romântico
+                message: "Ahhh, Passagarda... Que saudade!"
+            },
+            {
+                image: "casal_4.jpeg", // Placeholder romântico
+                message: "Nossa primeira viagem para a Chapada!"
+            },
+            {
+                image: "casal_5.jpeg", // Placeholder romântico
+                message: "E aquela vista do nosso quarto na pousada de Morro? Incrível demaaaais!"
+            },
+            {
+                image: "casal_6.jpeg", // Placeholder romântico
+                message: "Que saudade desse carnaval! O primeiro de muiitos!"
+            },
+        ];
+
+        const GRID_SIZE = 3; // 3x3 = 9 peças
+        const TOTAL_PIECES = GRID_SIZE * GRID_SIZE;
+        let currentLevel = 0;
+        
+        const container = document.getElementById('puzzle-container');
+        const statusText = document.getElementById('status-text');
+        const modal = document.getElementById('modal');
+        const memoryMessage = document.getElementById('memory-message');
+
+        // Variáveis de Drag and Drop manual
+        let dragSrcEl = null;
+
+        function initLevel() {
+            container.innerHTML = '';
+            container.classList.remove('completed');
+            modal.classList.remove('active');
+            statusText.innerText = "Arraste as peças";
+
+            // Define a imagem da fase atual via variável CSS inline no container
+            const currentImage = levels[currentLevel].image;
+            
+            // Cria array com posições corretas
+            let pieces = [];
+            for (let i = 0; i < TOTAL_PIECES; i++) {
+                pieces.push(i);
+            }
+
+            // Embaralha as peças (garante que não comece resolvido)
+            let isSolved = true;
+            while(isSolved) {
+                pieces.sort(() => Math.random() - 0.5);
+                isSolved = true;
+                for(let i=0; i<TOTAL_PIECES; i++) {
+                    if(pieces[i] !== i) isSolved = false;
+                }
+            }
+
+            // Cria as Divs no HTML
+            pieces.forEach((pieceIndex, visualIndex) => {
+                const piece = document.createElement('div');
+                piece.classList.add('puzzle-piece');
+                
+                // Aplica a imagem de fundo
+                piece.style.backgroundImage = `url('${currentImage}')`;
+                
+                // Calcula a posição do fundo (background-position) baseado no indice real da imagem (pieceIndex)
+                const row = Math.floor(pieceIndex / GRID_SIZE);
+                const col = pieceIndex % GRID_SIZE;
+                piece.style.backgroundPosition = `${col * 50}% ${row * 50}%`;
+                
+                // O id identifica qual parte da foto essa peça é
+                piece.dataset.correctIndex = pieceIndex;
+
+                // Configura Drag and Drop Nativo (HTML5) - Funciona no PC
+                piece.setAttribute('draggable', true);
+                
+                // Eventos de Touch (para Mobile) e Drag (para PC)
+                addDragAndTouchEvents(piece);
+
+                container.appendChild(piece);
+            });
+        }
+
+        function addDragAndTouchEvents(piece) {
+            // -- EVENTOS DESKTOP (Mouse) --
+            piece.addEventListener('dragstart', handleDragStart, false);
+            piece.addEventListener('dragover', handleDragOver, false);
+            piece.addEventListener('drop', handleDrop, false);
+            piece.addEventListener('dragend', handleDragEnd, false);
+
+            // -- EVENTOS MOBILE (Touch) --
+            piece.addEventListener('touchstart', handleTouchStart, {passive: false});
+            piece.addEventListener('touchmove', handleTouchMove, {passive: false});
+            piece.addEventListener('touchend', handleTouchEnd, false);
+        }
+
+        // --- LÓGICA DESKTOP (Drag API) ---
+        function handleDragStart(e) {
+            if (container.classList.contains('completed')) return;
+            this.classList.add('dragging');
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault(); // Necessário para permitir o Drop
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+            if (dragSrcEl !== this && !container.classList.contains('completed')) {
+                swapPieces(dragSrcEl, this);
+            }
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+        }
+
+        // --- LÓGICA MOBILE (Touch API) ---
+        let touchStartPiece = null;
+        let lastTouchEl = null;
+
+        function handleTouchStart(e) {
+            if (container.classList.contains('completed')) return;
+            e.preventDefault(); // Evita scroll da tela
+            touchStartPiece = this;
+            this.classList.add('dragging');
+        }
+
+        function handleTouchMove(e) {
+            if (!touchStartPiece || container.classList.contains('completed')) return;
+            e.preventDefault();
+            
+            const touchLocation = e.targetTouches[0];
+            
+            // Esconde a peça arrastada momentaneamente para descobrir quem está embaixo do dedo
+            touchStartPiece.style.display = 'none';
+            const elementUnderTouch = document.elementFromPoint(touchLocation.clientX, touchLocation.clientY);
+            touchStartPiece.style.display = 'block';
+
+            if (elementUnderTouch && elementUnderTouch.classList.contains('puzzle-piece') && elementUnderTouch !== touchStartPiece) {
+                lastTouchEl = elementUnderTouch;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (touchStartPiece) {
+                touchStartPiece.classList.remove('dragging');
+                if (lastTouchEl && lastTouchEl !== touchStartPiece && !container.classList.contains('completed')) {
+                    swapPieces(touchStartPiece, lastTouchEl);
+                }
+            }
+            touchStartPiece = null;
+            lastTouchEl = null;
+        }
+
+        // --- CORE LÓGICA ---
+        function swapPieces(piece1, piece2) {
+            // Troca o background position
+            const bgTemp = piece1.style.backgroundPosition;
+            piece1.style.backgroundPosition = piece2.style.backgroundPosition;
+            piece2.style.backgroundPosition = bgTemp;
+
+            // Troca os IDs (correctIndex)
+            const idTemp = piece1.dataset.correctIndex;
+            piece1.dataset.correctIndex = piece2.dataset.correctIndex;
+            piece2.dataset.correctIndex = idTemp;
+
+            checkWin();
+        }
+
+        function checkWin() {
+            let won = true;
+            const pieces = container.children;
+            
+            for (let i = 0; i < pieces.length; i++) {
+                // A posição atual na DOM (i) deve bater com o data-correctIndex da peça
+                if (parseInt(pieces[i].dataset.correctIndex) !== i) {
+                    won = false;
+                    break;
+                }
+            }
+
+            if (won) {
+                container.classList.add('completed');
+                statusText.innerText = "Imagem Completa!";
+                statusText.classList.replace('text-brand-gold', 'text-correct');
+                
+                // Remove atributo draggable
+                Array.from(pieces).forEach(p => p.removeAttribute('draggable'));
+
+                fireConfetti();
+                
+                setTimeout(() => {
+                    memoryMessage.innerText = levels[currentLevel].message;
+                    modal.classList.add('active');
+                }, 1500);
+            }
+        }
+
+        function nextLevel() {
+            currentLevel++;
+            if (currentLevel < levels.length) {
+                initLevel();
+            } else {
+                alert("Você completou todas as memórias! Feliz Aniversário de Namoro!");
+                // window.location.href = "index.html"; // Redireciona para o Hub
+            }
+        }
+
+        function fireConfetti() {
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 60 };
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+                if (timeLeft <= 0) return clearInterval(interval);
+                var particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: Math.random(), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        // Inicia o Jogo
+        initLevel();
+
+    </script>
+</body>
+</html>

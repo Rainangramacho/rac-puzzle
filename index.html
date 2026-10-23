@@ -42,7 +42,7 @@
             justify-content: center;
             padding: 20px;
             overflow-x: hidden;
-            touch-action: none; /* Previne scroll acidental enquanto arrasta no mobile */
+            touch-action: none;
         }
 
         @keyframes gradientBG {
@@ -59,15 +59,14 @@
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
         }
 
-        /* Container do Quebra-Cabeça */
+        /* Container do Quebra-Cabeça (Proporção dinâmica via JS) */
         #puzzle-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
             gap: 2px;
             width: 100%;
-            max-width: 300px;
-            aspect-ratio: 1/1;
+            max-width: 320px;
             background: rgba(255, 255, 255, 0.2);
             padding: 4px;
             border-radius: 12px;
@@ -79,7 +78,7 @@
         .puzzle-piece {
             width: 100%;
             height: 100%;
-            background-size: 300% 300%;
+            background-repeat: no-repeat;
             cursor: pointer;
             border-radius: 4px;
             box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3);
@@ -100,7 +99,7 @@
             z-index: 100;
         }
 
-        /* Container quando completo (some as bordas) */
+        /* Container quando completo */
         #puzzle-container.completed {
             gap: 0;
             padding: 0;
@@ -114,18 +113,11 @@
             cursor: default;
         }
 
-        /* Animações de UI */
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         #modal { display: none; }
         #modal.active { display: flex; }
-
-        /* Substitua a URL abaixo pela sua foto! Aspect ratio recomendado: quadrado (1:1) */
-        :root {
-            /* URL placeholder - troque pelo link real da imagem no seu github */
-            --puzzle-image: url('https://picsum.photos/600/600?random=1');
-        }
     </style>
 </head>
 <body class="text-white">
@@ -140,10 +132,10 @@
     <div class="glass-card p-6 md:p-8 rounded-3xl w-full max-w-md fade-in flex flex-col items-center">
         
         <div id="status-text" class="text-brand-gold font-bold mb-4 tracking-wider uppercase text-sm">
-            Arraste as peças
+            Carregando memória...
         </div>
 
-        <!-- Grid onde as peças serão embaralhadas -->
+        <!-- Grid do Quebra-Cabeça -->
         <div id="puzzle-container">
             <!-- As 9 divs serão injetadas via JS -->
         </div>
@@ -156,7 +148,6 @@
             <div class="text-6xl mb-4">✨</div>
             <h2 class="text-3xl font-bold text-brand-gold mb-2">Perfeito!</h2>
             <p id="memory-message" class="text-lg text-white/90 mb-6 leading-relaxed">
-                <!-- Mensagem dinâmica da fase entrará aqui -->
                 Cada pedacinho da nossa história é importante. Te amo!
             </p>
             <button onclick="nextLevel()" class="w-full bg-gradient-to-r from-brand-gold to-yellow-500 text-purple-900 font-extrabold text-lg py-3 rounded-full shadow-lg hover:scale-105 transition-transform">
@@ -166,37 +157,16 @@
     </div>
 
     <script>
-        // Configuração das Fases
-        // IMPORTANTE: Use fotos preferencialmente quadradas (1:1) para não distorcer.
-        // Se a foto não for quadrada, o CSS ajustará, mas pode cortar partes.
         const levels = [
-            {
-                image: "casal_1.jpeg", // Placeholder romântico
-                message: "Aquele dia em Morro foi maravilhoso, lembra?"
-            },
-            {
-                image: "casal_2.jpeg", // Placeholder romântico
-                message: "Nossa primeira viagem para o Rio!"
-            },
-            {
-                image: "casal_3.jpeg", // Placeholder romântico
-                message: "Ahhh, Passagarda... Que saudade!"
-            },
-            {
-                image: "casal_4.jpeg", // Placeholder romântico
-                message: "Nossa primeira viagem para a Chapada!"
-            },
-            {
-                image: "casal_5.jpeg", // Placeholder romântico
-                message: "E aquela vista do nosso quarto na pousada de Morro? Incrível demaaaais!"
-            },
-            {
-                image: "casal_6.jpeg", // Placeholder romântico
-                message: "Que saudade desse carnaval! O primeiro de muiitos!"
-            },
+            { image: "casal_1.jpeg", message: "Aquele dia em Morro foi maravilhoso, lembra?" },
+            { image: "casal_2.jpeg", message: "Nossa primeira viagem para o Rio!" },
+            { image: "casal_3.jpeg", message: "Ahhh, Passagarda... Que saudade!" },
+            { image: "casal_4.jpeg", message: "Nossa primeira viagem para a Chapada!" },
+            { image: "casal_5.jpeg", message: "E aquela vista do nosso quarto na pousada de Morro? Incrível demaaaais!" },
+            { image: "casal_6.jpeg", message: "Que saudade desse carnaval! O primeiro de muiitos!" }
         ];
 
-        const GRID_SIZE = 3; // 3x3 = 9 peças
+        const GRID_SIZE = 3;
         const TOTAL_PIECES = GRID_SIZE * GRID_SIZE;
         let currentLevel = 0;
         
@@ -205,74 +175,89 @@
         const modal = document.getElementById('modal');
         const memoryMessage = document.getElementById('memory-message');
 
-        // Variáveis de Drag and Drop manual
         let dragSrcEl = null;
 
         function initLevel() {
             container.innerHTML = '';
             container.classList.remove('completed');
             modal.classList.remove('active');
-            statusText.innerText = "Arraste as peças";
+            statusText.innerText = "Carregando imagem...";
 
-            // Define a imagem da fase atual via variável CSS inline no container
-            const currentImage = levels[currentLevel].image;
+            const currentImageSrc = levels[currentLevel].image;
+
+            // Pré-carrega a imagem para descobrir a proporção real (largura e altura)
+            const imgObj = new Image();
+            imgObj.src = currentImageSrc;
             
-            // Cria array com posições corretas
-            let pieces = [];
-            for (let i = 0; i < TOTAL_PIECES; i++) {
-                pieces.push(i);
-            }
+            imgObj.onload = function() {
+                const imgWidth = imgObj.naturalWidth;
+                const imgHeight = imgObj.naturalHeight;
+                const imgRatio = imgWidth / imgHeight;
 
-            // Embaralha as peças (garante que não comece resolvido)
-            let isSolved = true;
-            while(isSolved) {
-                pieces.sort(() => Math.random() - 0.5);
-                isSolved = true;
-                for(let i=0; i<TOTAL_PIECES; i++) {
-                    if(pieces[i] !== i) isSolved = false;
+                // Ajusta o formato do container dinamicamente baseado na foto original
+                if (imgRatio > 1) {
+                    // Foto Horizontal
+                    container.style.aspectRatio = `${imgRatio} / 1`;
+                    container.style.maxWidth = '340px';
+                } else if (imgRatio < 1) {
+                    // Foto Vertical (comum em celulares)
+                    container.style.aspectRatio = `${imgRatio} / 1`;
+                    container.style.maxWidth = '260px';
+                } else {
+                    // Foto Quadrada perfeita
+                    container.style.aspectRatio = '1 / 1';
+                    container.style.maxWidth = '300px';
                 }
-            }
 
-            // Cria as Divs no HTML
-            pieces.forEach((pieceIndex, visualIndex) => {
-                const piece = document.createElement('div');
-                piece.classList.add('puzzle-piece');
-                
-                // Aplica a imagem de fundo
-                piece.style.backgroundImage = `url('${currentImage}')`;
-                
-                // Calcula a posição do fundo (background-position) baseado no indice real da imagem (pieceIndex)
-                const row = Math.floor(pieceIndex / GRID_SIZE);
-                const col = pieceIndex % GRID_SIZE;
-                piece.style.backgroundPosition = `${col * 50}% ${row * 50}%`;
-                
-                // O id identifica qual parte da foto essa peça é
-                piece.dataset.correctIndex = pieceIndex;
+                statusText.innerText = "Arraste as peças";
 
-                // Configura Drag and Drop Nativo (HTML5) - Funciona no PC
-                piece.setAttribute('draggable', true);
-                
-                // Eventos de Touch (para Mobile) e Drag (para PC)
-                addDragAndTouchEvents(piece);
+                let pieces = [];
+                for (let i = 0; i < TOTAL_PIECES; i++) {
+                    pieces.push(i);
+                }
 
-                container.appendChild(piece);
-            });
+                // Garante que não comece embaralhado e resolvido ao mesmo tempo
+                let isSolved = true;
+                while(isSolved) {
+                    pieces.sort(() => Math.random() - 0.5);
+                    isSolved = true;
+                    for(let i = 0; i < TOTAL_PIECES; i++) {
+                        if(pieces[i] !== i) isSolved = false;
+                    }
+                }
+
+                pieces.forEach((pieceIndex) => {
+                    const piece = document.createElement('div');
+                    piece.classList.add('puzzle-piece');
+                    piece.style.backgroundImage = `url('${currentImageSrc}')`;
+                    
+                    const row = Math.floor(pieceIndex / GRID_SIZE);
+                    const col = pieceIndex % GRID_SIZE;
+                    
+                    // O segredo do background-size proporcional ao grid 3x3
+                    piece.style.backgroundSize = `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`;
+                    piece.style.backgroundPosition = `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`;
+                    
+                    piece.dataset.correctIndex = pieceIndex;
+                    piece.setAttribute('draggable', true);
+                    
+                    addDragAndTouchEvents(piece);
+                    container.appendChild(piece);
+                });
+            };
         }
 
         function addDragAndTouchEvents(piece) {
-            // -- EVENTOS DESKTOP (Mouse) --
             piece.addEventListener('dragstart', handleDragStart, false);
             piece.addEventListener('dragover', handleDragOver, false);
             piece.addEventListener('drop', handleDrop, false);
             piece.addEventListener('dragend', handleDragEnd, false);
 
-            // -- EVENTOS MOBILE (Touch) --
             piece.addEventListener('touchstart', handleTouchStart, {passive: false});
             piece.addEventListener('touchmove', handleTouchMove, {passive: false});
             piece.addEventListener('touchend', handleTouchEnd, false);
         }
 
-        // --- LÓGICA DESKTOP (Drag API) ---
         function handleDragStart(e) {
             if (container.classList.contains('completed')) return;
             this.classList.add('dragging');
@@ -282,7 +267,7 @@
         }
 
         function handleDragOver(e) {
-            if (e.preventDefault) e.preventDefault(); // Necessário para permitir o Drop
+            if (e.preventDefault) e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             return false;
         }
@@ -299,13 +284,12 @@
             this.classList.remove('dragging');
         }
 
-        // --- LÓGICA MOBILE (Touch API) ---
         let touchStartPiece = null;
         let lastTouchEl = null;
 
         function handleTouchStart(e) {
             if (container.classList.contains('completed')) return;
-            e.preventDefault(); // Evita scroll da tela
+            e.preventDefault();
             touchStartPiece = this;
             this.classList.add('dragging');
         }
@@ -315,8 +299,6 @@
             e.preventDefault();
             
             const touchLocation = e.targetTouches[0];
-            
-            // Esconde a peça arrastada momentaneamente para descobrir quem está embaixo do dedo
             touchStartPiece.style.display = 'none';
             const elementUnderTouch = document.elementFromPoint(touchLocation.clientX, touchLocation.clientY);
             touchStartPiece.style.display = 'block';
@@ -337,14 +319,16 @@
             lastTouchEl = null;
         }
 
-        // --- CORE LÓGICA ---
         function swapPieces(piece1, piece2) {
-            // Troca o background position
-            const bgTemp = piece1.style.backgroundPosition;
+            const bgPosTemp = piece1.style.backgroundPosition;
+            const bgSizeTemp = piece1.style.backgroundSize;
+            
             piece1.style.backgroundPosition = piece2.style.backgroundPosition;
-            piece2.style.backgroundPosition = bgTemp;
+            piece1.style.backgroundSize = piece2.style.backgroundSize;
+            
+            piece2.style.backgroundPosition = bgPosTemp;
+            piece2.style.backgroundSize = bgSizeTemp;
 
-            // Troca os IDs (correctIndex)
             const idTemp = piece1.dataset.correctIndex;
             piece1.dataset.correctIndex = piece2.dataset.correctIndex;
             piece2.dataset.correctIndex = idTemp;
@@ -357,7 +341,6 @@
             const pieces = container.children;
             
             for (let i = 0; i < pieces.length; i++) {
-                // A posição atual na DOM (i) deve bater com o data-correctIndex da peça
                 if (parseInt(pieces[i].dataset.correctIndex) !== i) {
                     won = false;
                     break;
@@ -369,9 +352,7 @@
                 statusText.innerText = "Imagem Completa!";
                 statusText.classList.replace('text-brand-gold', 'text-correct');
                 
-                // Remove atributo draggable
                 Array.from(pieces).forEach(p => p.removeAttribute('draggable'));
-
                 fireConfetti();
                 
                 setTimeout(() => {
@@ -387,7 +368,6 @@
                 initLevel();
             } else {
                 alert("Você completou todas as memórias! Feliz Aniversário de Namoro!");
-                // window.location.href = "index.html"; // Redireciona para o Hub
             }
         }
 
@@ -406,7 +386,6 @@
 
         // Inicia o Jogo
         initLevel();
-
     </script>
 </body>
 </html>
